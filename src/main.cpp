@@ -3,121 +3,48 @@
 #include <string>
 #include <sstream>
 #include <algorithm>
+#include <ctime>
 #include <unpac/g03.h>
 #include <unpac/estream.h>
 #include <unpac/types.h>
 #include <unpac/museum.h>
+#include "extras.h"
 
 #include "raylib.h"
 
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
 
-int g01StageIdx(int worldIdx, int sectionIdx) {
-    int stageIdx = 0;
-
-    if(worldIdx == 0) {
-        if(sectionIdx == 0) {
-            stageIdx = 0;
-        } else if(sectionIdx == 1) {
-            stageIdx = 1;
-        } else if(sectionIdx == 2) {
-            stageIdx = 2;
-        }
-    } else if(worldIdx == 1) {
-        if(sectionIdx == 0) {
-            stageIdx = 3;
-        } else if(sectionIdx == 1) {
-            stageIdx = 4;
-        } else if(sectionIdx == 2) {
-            stageIdx = 5;
-        }
-    } else if(worldIdx == 2) {
-        if(sectionIdx == 0) {
-            stageIdx = 6;
-        } else if(sectionIdx == 1) {
-            stageIdx = 7;
-        } else if(sectionIdx == 2) {
-            stageIdx = 8;
-        }
-    }
-
-    return stageIdx;
-}
-
-void Load(estream& in, std::vector<std::string>& droppedFilesVec, std::stringstream& data, std::vector<struct museum::GalagaSave>& galagaSaves, bool& g01complete) {
-    in.open(droppedFilesVec[0]);
-    if(!in.is_open()) {
-        std::cerr << droppedFilesVec[0] << " not opened!\n";
-        return;
-    };
-
-    u32 crc = in.read_int<u32>();
-
-    data << in.rdbuf();
-
-    in.seekg(museum::GALAGA_OFF, in.beg);
-    for(int i = 0; i < 10; i++) {
-        galagaSaves[i].shot = in.read_int<u32>();
-        galagaSaves[i].unused1 = in.read_int<u32>();
-        galagaSaves[i].accuracy = in.read_int<u32>();
-        galagaSaves[i].hp = in.read_int<u32>();
-        galagaSaves[i].score = in.read_int<u32>();
-        galagaSaves[i].shotBadge = in.read_int<u32>();
-        galagaSaves[i].accuracyBadge = in.read_int<u32>();
-        galagaSaves[i].scoreBadge = in.read_int<u32>();
-        galagaSaves[i].hpBadge = in.read_int<u32>();
-        galagaSaves[i].flag = in.read_int<u32>();
-        galagaSaves[i].unused2 = in.read_int<u32>();
-    }
-
-    in.seekg(museum::GALAGA_COMPLETE_OFF + 4, in.beg);
-    u32 tmp1;
-
-    in.endian() = std::endian::little;
-    tmp1 = in.read_int<u32>();
-    in.endian() = std::endian::big;
-
-    if(tmp1 == 1) g01complete = true;
-    else g01complete = false;
-
-    in.close();
-
-    // std::copy(dataVec.begin(), dataVec.end(), data.str().begin());
-
-    /*
-    crc = crc32(0, 0, 0);
-
-    for(int i = 0; i < dataVec.size(); i++) {
-        crc = crc32(crc, reinterpret_cast<const unsigned char*>(&dataVec[0]) + i, 1);
-    }
-
-    in.open(droppedFilesVec[0]);
-    if(!in.is_open()) {
-        std::cerr << droppedFilesVec[0] << " not opened!\n";
-        return 1;
-    }
-
-    in.write_int(crc);
-    in.write(reinterpret_cast<char*>(&dataVec[0]), dataVec.size());
-
-    in.close();
-    */
-}
+/* if hampus ever sees this code hes divorcing me */
 
 int main(int argc, char **argv) {
-    InitWindow(800, 600, "musave");
+    const int width = 800;
+    const int height = 600;
 
+    /* i like to keep a 20px boundary between
+     * ui elements and the edge of the screen */
+    const int lXBnd = 20;
+    const int rXBnd = width - 20;
+    const int tYBnd = 20;
+    const int bYBnd = height - 20;
+
+    const int fontSize = 20;
+    const int smallFontSize = 10;
+
+    InitWindow(width, height, "musave");
+
+    /* input-files */
     FilePathList droppedFiles;
     bool droppedFile = false;
-
     std::vector<std::string> droppedFilesVec(1);
 
+    /* savefile io variables */
     estream in;
     in.endian() = std::endian::big;
     std::stringstream data;
     std::vector<char> dataVec(museum::SAVE_SIZE - 4);
 
+    /* g01 / galaga remix variables */
     std::vector<std::string> g01worlds = {"1", "2", "3"};
     int g01worldIdx = 0;
     int g01stageIdx = 0;
@@ -128,14 +55,44 @@ int main(int argc, char **argv) {
                                         320, 274, 118};
     bool g01complete;
 
+    /* g03 / rally-x remix variables */
+    std::vector<std::string> g02worlds = {"1", "2", "3", "4"};
+    int g02worldIdx = 0;
+    int g02stageIdx = 0;
+
+    /* g03 / pac n roll remix variables */
+    std::vector<std::string> g03worlds = {"1", "2", "3", "4", "5"};
+    int g03worldIdx = 0;
+    int g03stageIdx = 0;
+    bool g03complete;
+
+    // TODO: g04 / gator panic support
+
+    /* g07 / pac motos variables */
+    std::vector<std::string> g07worlds = {"1", "2", "3", "4", "5"};
+    int g07worldIdx = 0;
+    int g07stageIdx = 0;
+    bool g07complete;
+    int g07lives;
+    int g07power;
+    int g07jump;
+    int g07charge;
+
+    /* input variables */
     std::string input = "";
     std::string lastInput = "";
     bool doInput = false;
     bool doInitLoad = false;
 
-    std::vector<struct museum::GalagaSave> galagaSaves(10);
+    /* raw save structures */
+    std::vector<struct museum::GalagaSave> galagaSaves(9);
+    std::vector<struct museum::RallyXSave> rallyXSaves(25);
+    std::vector<struct museum::PacSave> pacSaves(26);
+    std::vector<struct museum::MotosSave> motosSaves(35);
 
     while(!WindowShouldClose()) {
+        /* --- logic section --- */
+        /* input logic */
         if(doInput) {
             int key = GetKeyPressed();
             char ch = GetCharPressed();
@@ -169,40 +126,43 @@ int main(int argc, char **argv) {
         if(!doInitLoad) {
             if(std::string(GetFileName(droppedFilesVec[0].c_str())) == "museum.bin") {
                 doInitLoad = true;
-                Load(in, droppedFilesVec, data, galagaSaves, g01complete);
+                Load(in, droppedFilesVec, data, galagaSaves, g01complete, rallyXSaves, pacSaves, g03complete, motosSaves, g07complete, g07lives, g07power, g07jump, g07charge);
             }
         }
 
+        /* --- draw section --- */
         BeginDrawing();
         ClearBackground(BLACK);
 
+        /* input prompt */
         if(doInput) {
-            DrawText("INPUT: ", 20, 580, 20, WHITE);
+            DrawText("INPUT: ", lXBnd, bYBnd, fontSize, WHITE);
 
-            DrawText(TextFormat("%s", input.c_str()), 100, 580, 20, WHITE);
+            DrawText(TextFormat("%s", input.c_str()), lXBnd + MeasureText("INPUT: ", fontSize), bYBnd, fontSize, WHITE);
         }
 
+        /* g01 - g07 buttons */
         for(int i = 0; i < sections.size(); i++) {
             if(i == sectionIdx) {
-                if(GuiButton({(float)(20 + (i * 100)), 20, 100, 70}, sections[i].c_str())) {
+                if(GuiButton({(float)(lXBnd + (i * 100)), fontSize, 100, 40 + 30}, sections[i].c_str())) {
                     sectionIdx = i;
                 }
             } else {
-                if(GuiButton({(float)(20 + (i * 100)), 20, 100, 40}, sections[i].c_str())) {
+                if(GuiButton({(float)(lXBnd + (i * 100)), fontSize, 100, 40}, sections[i].c_str())) {
                     sectionIdx = i;
                 }
             }
         }
 
         if(doInitLoad) {
-            if(GuiButton({560, 20, 100, 20}, "READ")) {
-                Load(in, droppedFilesVec, data, galagaSaves, g01complete);
+            if(GuiButton({rXBnd - 200, fontSize, 100, fontSize}, "READ")) {
+                Load(in, droppedFilesVec, data, galagaSaves, g01complete, rallyXSaves, pacSaves, g03complete, motosSaves, g07complete, g07lives, g07power, g07jump, g07charge);
             }
-            if(GuiButton({680, 20, 100, 20}, "WRITE")) {
+            if(GuiButton({rXBnd - 100, fontSize, 100, fontSize}, "WRITE")) {
                 in.open(droppedFilesVec[0]);
                 in.seekp(museum::GALAGA_OFF, in.beg);
 
-                for(int i = 0; i < 10; i++) {
+                for(int i = 0; i < 9; i++) {
                     in.write_int(galagaSaves[i].shot);
                     in.write_int(galagaSaves[i].unused1);
                     in.write_int(galagaSaves[i].accuracy);
@@ -228,6 +188,50 @@ int main(int argc, char **argv) {
                 in.write_int(tmp1);
                 in.endian() = std::endian::big;
 
+                in.seekg(museum::RALLYX_OFF, in.beg);
+                for(int i = 0; i < 25; i++) {
+                    in.write_int(rallyXSaves[i].time);
+                    in.write_int(rallyXSaves[i].score);
+                    in.write_int(rallyXSaves[i].scoreBadge);
+                    in.write_int(rallyXSaves[i].timeBadge);
+                    in.write_int(rallyXSaves[i].flag);
+                }
+
+                if(g03complete) {
+                    pacSaves[25].flag = 1;
+                } else pacSaves[25].flag = 0;
+
+                in.seekp(museum::PAC_OFF, in.beg);
+                for(int i = 0; i < 26; i++) {
+                    in.write_int(pacSaves[i].time);
+                    in.write_int(pacSaves[i].unused1);
+                    in.write_int(pacSaves[i].collected);
+                    in.write_int(pacSaves[i].max);
+                    in.write_int(pacSaves[i].unused2);
+                    in.write_int(pacSaves[i].timeBadge);
+                    in.write_int(pacSaves[i].ghostBadge);
+                    in.write_int(pacSaves[i].collectedBadge);
+                    in.write_int(pacSaves[i].flag);
+                }
+
+                in.seekp(museum::MOTOS_OFF, in.beg);
+                for(int i = 0; i < 35; i++) {
+                    in.write_int(motosSaves[i].score);
+                    in.write_int(motosSaves[i].time);
+                    in.write_int(motosSaves[i].scoreBadge);
+                    in.write_int(motosSaves[i].timeBadge);
+                    in.write_int(motosSaves[i].unused);
+                    in.write_int(motosSaves[i].flag);
+                }
+
+                in.seekp(museum::MOTOS_LIVES_OFF, in.beg);
+                in.write_int(g07lives);
+                in.seekp(museum::MOTOS_POWER_OFF, in.beg);
+                in.write_int(g07power);
+                in.write_int(g07jump);
+                in.write_int(g07charge);
+
+
                 std::vector<char> tmp(museum::SAVE_SIZE - 4);
                 in.seekg(4, in.beg);
                 in.read(reinterpret_cast<char*>(&tmp[0]), tmp.size());
@@ -244,6 +248,275 @@ int main(int argc, char **argv) {
                 in.write(reinterpret_cast<char*>(&tmpCrc), 4);
                 
                 in.close();
+            }
+
+            int tmpX = width - 40;
+
+            if(sectionIdx == 4) {
+                if(GuiButton({lXBnd, 105, 100, 20}, TextFormat("WORLD %d >>>", g07worldIdx + 1))) {
+                    if(g07worldIdx + 1 > g07worlds.size() - 1) g07worldIdx = 0;
+                    else g07worldIdx++;
+
+                    g07stageIdx = 0;
+                }
+
+                if(GuiLabelButton({140, 105, 60, 10}, TextFormat("LIVES: %d", g07lives))) {
+                    doInput = true;
+
+                    if(lastInput != "") {
+                        g07lives = std::stoi(lastInput);
+                    }
+                }
+                if(GuiLabelButton({190, 95, 60, 10}, TextFormat("POWER: %d", g07power))) {
+                    doInput = true;
+
+                    if(lastInput != "") {
+                        g07power = std::stoi(lastInput);
+                    }
+                }
+                if(GuiLabelButton({190, 105, 60, 10}, TextFormat("JUMP: %d", g07jump))) {
+                    doInput = true;
+
+                    if(lastInput != "") {
+                        g07jump = std::stoi(lastInput);
+                    }
+                }
+                if(GuiLabelButton({190, 115, 60, 10}, TextFormat("CHARGE: %d", g07charge))) {
+                    doInput = true;
+
+                    if(lastInput != "") {
+                        g07charge = std::stoi(lastInput);
+                    }
+                }
+
+                for(int i = 0; i < 7; i++) {
+                    if(i == 6) GuiGroupBox({20 + (float)(((int)(tmpX / 7)) * i), 140, (float)((int)(tmpX / 7)), (height - 160) - 40}, TextFormat("%d - BOSS", g07worldIdx + 1));
+                    else GuiGroupBox({20 + (float)(((int)(tmpX / 7)) * i), 140, (float)((int)(tmpX / 7)), (height - 160) - 40}, TextFormat("%d - %d", g07worldIdx + 1, i + 1));
+                }
+
+                for(int i = 0; i < 7; i++) {
+                    int g07stageVecIdx = g07StageIdx(g07worldIdx, i);
+
+                    if(GuiLabelButton({40 + (float)((int)(tmpX / 7)) * i, 160, 50, 20}, TextFormat("High Score: %d", motosSaves[g07stageVecIdx].score))) {
+                        doInput = true;
+
+                        if(lastInput != "") {
+                            motosSaves[g07stageVecIdx].score = std::stoi(lastInput);
+                        }
+                    }
+                    if(motosSaves[g07stageVecIdx].scoreBadge) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 7)) * i, 180, 50, 20}, "PERFECT", GOLD)) {
+                            motosSaves[g07stageVecIdx].scoreBadge = 0;
+                        }
+                    } else {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 7)) * i, 180, 50, 20}, "PERFECT", GRAY)) {
+                            motosSaves[g07stageVecIdx].scoreBadge = 1;
+                        }
+                    }
+
+                    if(GuiLabelButton({40 + (float)((int)(tmpX / 7)) * i, 200, 50, 20}, TextFormat("Time: %d", motosSaves[g07stageVecIdx].time))) {
+                        doInput = true;
+
+                        if(lastInput != "") {
+                            motosSaves[g07stageVecIdx].time = std::stoi(lastInput);
+                        }
+
+                    }
+                    if(motosSaves[g07stageVecIdx].timeBadge) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 7)) * i, 220, 50, 20}, "PERFECT", GOLD)) {
+                            motosSaves[g07stageVecIdx].timeBadge = 0;
+                        }
+                    } else {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 7)) * i, 220, 50, 20}, "PERFECT", GRAY)) {
+                            motosSaves[g07stageVecIdx].timeBadge = 1;
+                        }
+                    }
+
+                    if(motosSaves[g07stageVecIdx].flag) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 7)) * i, 540, 50, 30}, "UNLOCKED", GOLD)) motosSaves[g07stageVecIdx].flag = 0;
+                    } else {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 7)) * i, 540, 50, 30}, "LOCKED", GRAY)) motosSaves[g07stageVecIdx].flag = 1;
+                    }
+                }
+
+            }
+
+            if(sectionIdx == 2) {
+                if(GuiButton({20, 105, 100, 20}, TextFormat("WORLD %d >>>", g03worldIdx + 1))) {
+                    if(g03worldIdx + 1 > g03worlds.size() - 1) g03worldIdx = 0;
+                    else g03worldIdx++;
+
+                    g03stageIdx = 0;
+                }
+
+                if(g03worldIdx == 0) {
+                    for(int i = 0; i < 5; i++) {
+                        GuiGroupBox({20 + (float)(((int)(tmpX / 5)) * i), 140, (float)((int)(tmpX / 5)), (height - 160) - 40}, TextFormat("%d - %d", g03worldIdx + 1, i + 1));
+                    }
+                } else if(g03worldIdx == 1) {
+                    for(int i = 0; i < 4; i++) {
+                        if(i == 3) GuiGroupBox({20 + (float)(((int)(tmpX / 4)) * i), 140, (float)((int)(tmpX / 4)), (height - 160) - 40}, TextFormat("%d - BOSS", g03worldIdx + 1));
+                        else GuiGroupBox({20 + (float)(((int)(tmpX / 4)) * i), 140, (float)((int)(tmpX / 4)), (height - 160) - 40}, TextFormat("%d - %d", g03worldIdx + 1, i + 1));
+                    }
+                } else if(g03worldIdx == 2) {
+                    for(int i = 0; i < 5; i++) {
+                        if(i == 4) GuiGroupBox({20 + (float)(((int)(tmpX / 5)) * i), 140, (float)((int)(tmpX / 5)), (height - 160) - 40}, TextFormat("%d - BOSS", g03worldIdx + 1));
+                        else GuiGroupBox({20 + (float)(((int)(tmpX / 5)) * i), 140, (float)((int)(tmpX / 5)), (height - 160) - 40}, TextFormat("%d - %d", g03worldIdx + 1, i + 1));
+                    }
+                } else if(g03worldIdx == 3) {
+                    for(int i = 0; i < 6; i++) {
+                        if(i == 5) GuiGroupBox({20 + (float)(((int)(tmpX / 6)) * i), 140, (float)((int)(tmpX / 6)), (height - 160) - 40}, TextFormat("%d - BOSS", g03worldIdx + 1));
+                        else GuiGroupBox({20 + (float)(((int)(tmpX / 6)) * i), 140, (float)((int)(tmpX / 6)), (height - 160) - 40}, TextFormat("%d - %d", g03worldIdx + 1, i + 1));
+                    }
+                } else if(g03worldIdx == 4) {
+                    for(int i = 0; i < 5; i++) {
+                        if(i == 4) GuiGroupBox({20 + (float)(((int)(tmpX / 5)) * i), 140, (float)((int)(tmpX / 5)), (height - 160) - 40}, TextFormat("%d - BOSS", g03worldIdx + 1));
+                        else GuiGroupBox({20 + (float)(((int)(tmpX / 5)) * i), 140, (float)((int)(tmpX / 5)), (height - 160) - 40}, TextFormat("%d - %d", g03worldIdx + 1, i + 1));
+                    }
+                }
+
+                int div;
+                if(g03worldIdx == 0) div = 5;
+                if(g03worldIdx == 1) div = 4;
+                if(g03worldIdx == 2) div = 5;
+                if(g03worldIdx == 3) div = 6;
+                if(g03worldIdx == 4) div = 5;
+
+                for(int i = 0; i < div; i++) {
+                    int g03stageVecIdx = g03StageIdx(g03worldIdx, i);
+
+                    if(GuiLabelButton({40 + (float)((int)(tmpX / div)) * i, 160, 50, 20}, TextFormat("Pac-Dots: %d / %d", pacSaves[g03stageVecIdx].collected, pacSaves[g03stageVecIdx].max))) {
+                        doInput = true;
+
+                        if(lastInput != "") {
+                            pacSaves[g03stageVecIdx].collected = std::stoi(lastInput);
+                        }
+                    }
+                    if(pacSaves[g03stageVecIdx].collectedBadge) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / div)) * i, 180, 50, 20}, "PERFECT", GOLD)) {
+                            pacSaves[g03stageVecIdx].collectedBadge = 0;
+                        }
+                    } else {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / div)) * i, 180, 50, 20}, "PERFECT", GRAY)) {
+                            pacSaves[g03stageVecIdx].collectedBadge = 1;
+                        }
+                    }
+
+                    if(GuiLabelButton({40 + (float)((int)(tmpX / div)) * i, 200, 50, 20}, TextFormat("Time: %d", pacSaves[g03stageVecIdx].time))) {
+                        doInput = true;
+
+                        if(lastInput != "") {
+                            pacSaves[g03stageVecIdx].time = std::stoi(lastInput);
+                        }
+
+                    }
+                    if(pacSaves[g03stageVecIdx].timeBadge) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / div)) * i, 220, 50, 20}, "PERFECT", GOLD)) {
+                            pacSaves[g03stageVecIdx].timeBadge = 0;
+                        }
+                    } else {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / div)) * i, 220, 50, 20}, "PERFECT", GRAY)) {
+                            pacSaves[g03stageVecIdx].timeBadge = 1;
+                        }
+                    }
+
+                    if(GuiLabelButton({40 + (float)((int)(tmpX / div)) * i, 240, 50, 20}, TextFormat("Ghosts: %d", pacSaves[g03stageVecIdx].unused2))) {
+                        doInput = true;
+
+                        if(lastInput != "") {
+                            pacSaves[g03stageVecIdx].unused2 = std::stoi(lastInput);
+                        }
+
+                    }
+                    if(pacSaves[g03stageVecIdx].ghostBadge) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / div)) * i, 260, 50, 20}, "PERFECT", GOLD)) {
+                            pacSaves[g03stageVecIdx].ghostBadge = 0;
+                        }
+                    } else {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / div)) * i, 260, 50, 20}, "PERFECT", GRAY)) {
+                            pacSaves[g03stageVecIdx].ghostBadge = 1;
+                        }
+                    }
+
+
+                    if(pacSaves[g03stageVecIdx].flag) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / div)) * i, 540, 50, 30}, "UNLOCKED", GOLD)) pacSaves[g03stageVecIdx].flag = 0;
+                    } else {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / div)) * i, 540, 50, 30}, "UNLOCKED", GRAY)) pacSaves[g03stageVecIdx].flag = 1;
+                    }
+
+                    if(i == 4 && g03worldIdx == 4) {
+                        if(g03complete) {
+                            if(GuiLabelButtonColor({40 + (float)((int)(tmpX /5)) * i, height - 40, 100, 30}, "FINAL BOSS COMPLETE", GOLD)) {
+                                g03complete = false;
+                            }
+                        } else {
+                            if(GuiLabelButtonColor({40 + (float)((int)(tmpX /5)) * i, height - 40, 100, 30}, "FINAL BOSS COMPLETE", GRAY)) {
+                                g03complete = true;
+                            }
+                        }
+                    }
+
+                }
+            }
+
+            if(sectionIdx == 1) {
+                if(GuiButton({20, 105, 100, 20}, TextFormat("WORLD %d >>>", g02worldIdx + 1))) {
+                    if(g02worldIdx + 1 > g02worlds.size() - 1) g02worldIdx = 0;
+                    else g02worldIdx++;
+
+                    g02stageIdx = 0;
+                }
+
+                for(int i = 0; i < 6; i++) {
+                    if(i == 5) GuiGroupBox({20 + (float)(((int)(tmpX / 6)) * i), 140, (float)((int)(tmpX / 6)), (height - 160) - 40}, TextFormat("%d - REDMODE", g02worldIdx + 1));
+                    else GuiGroupBox({20 + (float)(((int)(tmpX / 6)) * i), 140, (float)((int)(tmpX / 6)), (height - 160) - 40}, TextFormat("%d - %d", g02worldIdx + 1, i + 1));
+                }
+
+                for(int i = 0; i < 6; i++) {
+                    int g02stageVecIdx = g02StageIdx(g02worldIdx, i);
+
+                    if(GuiLabelButton({40 + (float)((int)(tmpX / 6)) * i, 160, 50, 20}, TextFormat("High Score: %d", rallyXSaves[g02stageVecIdx].score))) {
+                        doInput = true;
+
+                        if(lastInput != "") {
+                            rallyXSaves[g02stageVecIdx].score = std::stoi(lastInput);
+                        }
+                    }
+                    if(rallyXSaves[g02stageVecIdx].scoreBadge) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 6)) * i, 180, 50, 20}, "PERFECT", GOLD)) {
+                            rallyXSaves[g02stageVecIdx].scoreBadge = 0;
+                        }
+                    } else {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 6)) * i, 180, 50, 20}, "PERFECT", GRAY)) {
+                            rallyXSaves[g02stageVecIdx].scoreBadge = 1;
+                        }
+                    }
+
+                    if(GuiLabelButton({40 + (float)((int)(tmpX / 6)) * i, 200, 50, 20}, TextFormat("Time: %d", rallyXSaves[g02stageVecIdx].time))) {
+                        doInput = true;
+
+                        if(lastInput != "") {
+                            rallyXSaves[g02stageVecIdx].time = std::stoi(lastInput);
+                        }
+
+                    }
+                    if(rallyXSaves[g02stageVecIdx].timeBadge) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 6)) * i, 220, 50, 20}, "PERFECT", GOLD)) {
+                            rallyXSaves[g02stageVecIdx].timeBadge = 0;
+                        }
+                    } else {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 6)) * i, 220, 50, 20}, "PERFECT", GRAY)) {
+                            rallyXSaves[g02stageVecIdx].timeBadge = 1;
+                        }
+                    }
+
+                    if(rallyXSaves[g02stageVecIdx].flag) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 6)) * i, 540, 50, 30}, "COMPLETE", GOLD)) rallyXSaves[g02stageVecIdx].flag = 0;
+                    } else {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX / 6)) * i, 540, 50, 30}, "COMPLETE", GRAY)) rallyXSaves[g02stageVecIdx].flag = 1;
+                    }
+                }
             }
 
             if(sectionIdx == 0) {
@@ -268,14 +541,13 @@ int main(int argc, char **argv) {
                 */
 
                 for(int i = 0; i < 3; i++) {
-                    GuiGroupBox({20 + (float)(((int)(760 / 3)) * i), 140, ((int)(760 / 3)), (580 - 140) - 40}, TextFormat("%d - %d", g01worldIdx + 1, i + 1));
+                    GuiGroupBox({20 + (float)(((int)(tmpX / 3)) * i), 140, (float)((int)(tmpX / 3)), (height - 160) - 40}, TextFormat("%d - %d", g01worldIdx + 1, i + 1));
                 }
 
-                int g01stageVecIdx = g01StageIdx(g01worldIdx, g01stageIdx);
                 for(int i = 0; i < 3; i++) {
                     int g01stageVecIdx = g01StageIdx(g01worldIdx, i);
 
-                    if(GuiLabelButton({40 + (float)((int)(760 /3)) * i, 160, 100, 20}, TextFormat("High Score: %d", galagaSaves[g01stageVecIdx].score))) {
+                    if(GuiLabelButton({40 + (float)((int)(tmpX /3)) * i, 160, 100, 20}, TextFormat("High Score: %d", galagaSaves[g01stageVecIdx].score))) {
                         doInput = true;
 
                         if(lastInput != "") {
@@ -283,16 +555,16 @@ int main(int argc, char **argv) {
                         }
                     }
                     if(galagaSaves[g01stageVecIdx].scoreBadge) {
-                        if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i + 170, 160, 50, 20}, "PERFECT", GOLD)) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i + 170, 160, 50, 20}, "PERFECT", GOLD)) {
                             galagaSaves[g01stageVecIdx].scoreBadge = 0;
                         }
                     } else {
-                        if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i + 170, 160, 50, 20}, "PERFECT", GRAY)) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i + 170, 160, 50, 20}, "PERFECT", GRAY)) {
                             galagaSaves[g01stageVecIdx].scoreBadge = 1;
                         }
                     }
 
-                    if(GuiLabelButton({40 + (float)((int)(760 /3)) * i, 180, 100, 20}, TextFormat("Enemies Shot Down: %d / %d", galagaSaves[g01stageVecIdx].shot, g01EnemiesCount[g01stageVecIdx]))) {
+                    if(GuiLabelButton({40 + (float)((int)(tmpX /3)) * i, 180, 100, 20}, TextFormat("Enemies Shot Down: %d / %d", galagaSaves[g01stageVecIdx].shot, g01EnemiesCount[g01stageVecIdx]))) {
                         doInput = true;
 
                         if(lastInput != "") {
@@ -301,16 +573,16 @@ int main(int argc, char **argv) {
 
                     }
                     if(galagaSaves[g01stageVecIdx].shotBadge) {
-                        if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i + 170, 180, 50, 20}, "PERFECT", GOLD)) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i + 170, 180, 50, 20}, "PERFECT", GOLD)) {
                             galagaSaves[g01stageVecIdx].shotBadge = 0;
                         }
                     } else {
-                        if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i + 170, 180, 50, 20}, "PERFECT", GRAY)) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i + 170, 180, 50, 20}, "PERFECT", GRAY)) {
                             galagaSaves[g01stageVecIdx].shotBadge = 1;
                         }
                     }
 
-                    if(GuiLabelButton({40 + (float)((int)(760 /3)) * i, 200, 100, 20}, TextFormat("Accuracy: %.1f%%", (float)(galagaSaves[g01stageVecIdx].accuracy) / 10))) {
+                    if(GuiLabelButton({40 + (float)((int)(tmpX /3)) * i, 200, 100, 20}, TextFormat("Accuracy: %.1f%%", (float)(galagaSaves[g01stageVecIdx].accuracy) / 10))) {
                         doInput = true;
 
                         if(lastInput != "") {
@@ -319,16 +591,16 @@ int main(int argc, char **argv) {
 
                     }
                     if(galagaSaves[g01stageVecIdx].accuracyBadge) {
-                        if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i + 170, 200, 50, 20}, "PERFECT", GOLD)) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i + 170, 200, 50, 20}, "PERFECT", GOLD)) {
                             galagaSaves[g01stageVecIdx].accuracyBadge = 0;
                         }
                     } else {
-                        if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i + 170, 200, 50, 20}, "PERFECT", GRAY)) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i + 170, 200, 50, 20}, "PERFECT", GRAY)) {
                             galagaSaves[g01stageVecIdx].accuracyBadge = 1;
                         }
                     }
 
-                    if(GuiLabelButton({40 + (float)((int)(760 /3)) * i, 220, 100, 20}, TextFormat("Defense: %d / 7", galagaSaves[g01stageVecIdx].hp))) {
+                    if(GuiLabelButton({40 + (float)((int)(tmpX /3)) * i, 220, 100, 20}, TextFormat("Defense: %d / 7", galagaSaves[g01stageVecIdx].hp))) {
                         doInput = true;
 
                         if(lastInput != "") {
@@ -337,28 +609,28 @@ int main(int argc, char **argv) {
 
                     }
                     if(galagaSaves[g01stageVecIdx].hpBadge) {
-                        if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i + 170, 220, 50, 20}, "PERFECT", GOLD)) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i + 170, 220, 50, 20}, "PERFECT", GOLD)) {
                             galagaSaves[g01stageVecIdx].hpBadge = 0;
                         }
                     } else {
-                        if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i + 170, 220, 50, 20}, "PERFECT", GRAY)) {
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i + 170, 220, 50, 20}, "PERFECT", GRAY)) {
                             galagaSaves[g01stageVecIdx].hpBadge = 1;
                         }
                     }
 
                     if(galagaSaves[g01stageVecIdx].flag) {
-                        if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i, 540, 200, 30}, "UNLOCKED", GOLD)) galagaSaves[g01stageVecIdx].flag = 0;
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i, 540, 200, 30}, "UNLOCKED", GOLD)) galagaSaves[g01stageVecIdx].flag = 0;
                     } else {
-                        if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i, 540, 200, 30}, "LOCKED", GRAY)) galagaSaves[g01stageVecIdx].flag = 1;
+                        if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i, 540, 200, 30}, "LOCKED", GRAY)) galagaSaves[g01stageVecIdx].flag = 1;
                     }
 
                     if(i == 2 && g01worldIdx == 2) {
                         if(g01complete) {
-                            if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i, 560, 100, 30}, "BOSS COMPLETE", GOLD)) {
+                            if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i, 560, 100, 30}, "BOSS COMPLETE", GOLD)) {
                                 g01complete = false;
                             }
                         } else {
-                            if(GuiLabelButtonColor({40 + (float)((int)(760 /3)) * i, 560, 100, 30}, "BOSS COMPLETE", GRAY)) {
+                            if(GuiLabelButtonColor({40 + (float)((int)(tmpX /3)) * i, 560, 100, 30}, "BOSS COMPLETE", GRAY)) {
                                 g01complete = true;
                             }
                         }
