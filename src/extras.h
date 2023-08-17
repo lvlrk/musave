@@ -1,10 +1,10 @@
 #pragma once
 
-#include <unpac/estream.h>
+#include "estream.h"
 #include <vector>
 #include <string>
 #include <sstream>
-#include <unpac/museum.h>
+#include "museum.h"
 
 int g01StageIdx(int worldIdx, int sectionIdx);
 int g02StageIdx(int worldIdx, int sectionIdx);

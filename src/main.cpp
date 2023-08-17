@@ -4,11 +4,16 @@
 #include <sstream>
 #include <algorithm>
 #include <ctime>
-#include <unpac/g03.h>
-#include <unpac/estream.h>
-#include <unpac/types.h>
-#include <unpac/museum.h>
+#include "g03.h"
+#include "estream.h"
+#include "types.h"
+#include "museum.h"
 #include "extras.h"
+
+#ifndef _WIN32
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+#endif
 
 #include "raylib.h"
 
@@ -31,12 +36,20 @@ int main(int argc, char **argv) {
     const int fontSize = 20;
     const int smallFontSize = 10;
 
-    InitWindow(width, height, "musave");
-
     /* input-files */
     FilePathList droppedFiles;
     bool droppedFile = false;
-    std::vector<std::string> droppedFilesVec(1);
+    std::vector<std::string> droppedFilesVec = {""};
+
+#ifndef _WIN32 // currently my savepath; speeds up testing
+    std::ifstream cfgf("/home/lvlrk/.config/musave.json");
+    if(cfgf.is_open()) {
+        json cfg = json::parse(cfgf);
+        droppedFilesVec[0] = cfg["SavePath"];
+    }
+#endif
+
+    InitWindow(width, height, "musave");
 
     /* savefile io variables */
     estream in;
@@ -48,7 +61,7 @@ int main(int argc, char **argv) {
     std::vector<std::string> g01worlds = {"1", "2", "3"};
     int g01worldIdx = 0;
     int g01stageIdx = 0;
-    std::vector<std::string> sections = {"g01", "g02", "g03", "g04", "g07"};
+    std::vector<std::string> sections = {"Galaga Remix", "Rally-X Remix", "Pac 'N Roll Remix", "Gator-Panic Remix", "Pac Motos"};
     int sectionIdx = 0;
     std::vector<int> g01EnemiesCount = {139, 224, 278,
                                         286, 366, 193,
@@ -90,6 +103,11 @@ int main(int argc, char **argv) {
     std::vector<struct museum::PacSave> pacSaves(26);
     std::vector<struct museum::MotosSave> motosSaves(35);
 
+    if(droppedFilesVec[0] != "") {
+        Load(in, droppedFilesVec, data, galagaSaves, g01complete, rallyXSaves, pacSaves, g03complete, motosSaves, g07complete, g07lives, g07power, g07jump, g07charge);
+        doInitLoad = true;
+    }
+
     while(!WindowShouldClose()) {
         /* --- logic section --- */
         /* input logic */
@@ -104,10 +122,9 @@ int main(int argc, char **argv) {
                     lastInput = input;
                     doInput = false;
                     input = "";
-                } else if(key == KEY_BACKSPACE) {
+                } else if(key == KEY_BACKSPACE || key == KEY_DELETE) {
                     input.pop_back();
-                } else if(key == KEY_END) {
-                    lastInput = "";
+                } else if(key == KEY_END || key == KEY_LEFT_SHIFT || key == KEY_RIGHT_SHIFT) {
                     doInput = false;
                     input = "";
                 }
@@ -141,6 +158,10 @@ int main(int argc, char **argv) {
             DrawText(TextFormat("%s", input.c_str()), lXBnd + MeasureText("INPUT: ", fontSize), bYBnd, fontSize, WHITE);
         }
 
+        if(lastInput != "") {
+            DrawText(TextFormat("CLIPBOARD: %s", lastInput.c_str()), lXBnd, bYBnd - fontSize, fontSize, WHITE);
+        }
+
         /* g01 - g07 buttons */
         for(int i = 0; i < sections.size(); i++) {
             if(i == sectionIdx) {
@@ -155,7 +176,14 @@ int main(int argc, char **argv) {
         }
 
         if(doInitLoad) {
-            if(GuiButton({rXBnd - 200, fontSize, 100, fontSize}, "READ")) {
+            if(GuiButton({rXBnd - 200 - fontSize, fontSize, 100, fontSize}, "READ")) {
+                Load(in, droppedFilesVec, data, galagaSaves, g01complete, rallyXSaves, pacSaves, g03complete, motosSaves, g07complete, g07lives, g07power, g07jump, g07charge);
+            }
+            if(GuiButton({rXBnd - 100, fontSize * 3, 100, fontSize}, "RESET")) {
+                std::ofstream out(droppedFilesVec[0]);
+                for(int i = 0; i < museum::SAVE_SIZE; i++) out.put(0);
+                out.close();
+
                 Load(in, droppedFilesVec, data, galagaSaves, g01complete, rallyXSaves, pacSaves, g03complete, motosSaves, g07complete, g07lives, g07power, g07jump, g07charge);
             }
             if(GuiButton({rXBnd - 100, fontSize, 100, fontSize}, "WRITE")) {
@@ -251,6 +279,10 @@ int main(int argc, char **argv) {
             }
 
             int tmpX = width - 40;
+
+            if(sectionIdx == 3) {
+                DrawText("sorry bro Gator-Panic isn't supported yet", 200, 300, fontSize, WHITE);
+            }
 
             if(sectionIdx == 4) {
                 if(GuiButton({lXBnd, 105, 100, 20}, TextFormat("WORLD %d >>>", g07worldIdx + 1))) {

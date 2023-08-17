@@ -5,3 +5,5 @@
 -Ilib/raylib/src
 -Ilib/raygui/src
 -Ilib/zlib/include
+-Ilib/json/include
+-Ilib/unpac/include
