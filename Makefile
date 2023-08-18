@@ -1,17 +1,31 @@
 CXX=g++
-CXXFLAGS=-std=c++2b -Iinclude -Ilib/raylib/src -Ilib/raygui/src -Ilib/zlib/include -Ilib/json/include -Ilib/unpac/include -Wno-enum-compare -Wno-narrowing
-LDFLAGS=-lz -lunpac -lraylib
+CXXFLAGS=-std=c++2b -Wno-enum-compare -Wno-narrowing
+INCLUDES=-Iinclude/raygui/src -Iinclude/unpac/include
+LDFLAGS=
 TARGET=musave
 
-ifeq ($(OS),Windows_NT)
+# LINUX or WINDOWS
+PLATFORM_OS ?= LINUX
+
+# x86_64-w64-mingw32-g++ src/*.cpp -Iinclude/unpac/include
+# -Iinclude/raygui/src -Llib -lraylib -lz -std=c++2b
+#  -Wno-narrowing -Wno-enum-compare -lm -pthread
+#  -lgdi32 -luser32 -lkernel32 -lwinmm
+#  -Llib/static/windows-x86_64 -lpthread -lwinpthread
+#  -lunpac -static-libstdc++ -static-libgcc -static
+
+ifeq ($(PLATFORM_OS),WINDOWS)
+CXX=x86_64-w64-mingw32-g++
+LDFLAGS=-static -Llib -lraylib -lunpac -lz -lgdi32 -lwinmm
 TARGET=musave.exe
-LDFLAGS+=-static-libstdc++
+else
+LDFLAGS=-lraylib -lunpac -lz
 endif
 
 all: $(TARGET)
 
 $(TARGET): src/*.cpp
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $^ -o $(TARGET)
+	$(CXX) $(CXXFLAGS) $^ $(LDFLAGS) $(INCLUDES) -o $(TARGET)
 
 install: $(TARGET)
 	cp $(TARGET) /bin
